@@ -84,7 +84,7 @@
         top: -6px;
     }
     .hamburger::after {
-        bottom: 6px;
+        top: 6px;
     }
 
     .toolbar {
@@ -93,7 +93,22 @@
         align-items: center;
     }
     .view-switch {
-        display: none; /* Oculto en móvil */
+        display: flex;
+        background: #334155;
+        padding: 2px;
+        border-radius: 6px;
+        gap: 2px;
+    }
+    .view-switch button {
+        background: transparent;
+        color: #94a3b8;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: all 0.2s;
     }
     
     .measure-container {
@@ -136,6 +151,11 @@
     :global(.measure-active) #measure-output {
         display: block;
     }
+    
+    :global(.active-view) {
+        background: #3b82f6 !important;
+        color: white !important;
+    }
 
     /* Desktop Adjustments */
     @media (min-width: 769px) {
@@ -152,30 +172,18 @@
             font-weight: 600;
         }
         .view-switch {
-            display: flex;
-            background: #334155;
             padding: 3px;
-            border-radius: 6px;
             gap: 2px;
         }
         .view-switch button {
-            background: transparent;
-            color: #94a3b8;
-            border: none;
             padding: 0.4rem 0.8rem;
-            border-radius: 4px;
-            cursor: pointer;
             font-size: 0.85rem;
-            font-weight: 500;
-            transition: all 0.2s;
             min-width: 85px;
         }
         .view-switch button:hover {
             color: white;
         }
         :global(.active-view) {
-            background: #3b82f6 !important;
-            color: white !important;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
         #measure-output {
