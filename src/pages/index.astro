@@ -1,0 +1,127 @@
+<html lang="es">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Geoportal Demo</title>
+    </head>
+    <body>
+        <header class="top-bar">
+            <h1>Panel de Inteligencia Municipal</h1>
+            <div class="toolbar">
+                <button id="btn-osm">Vista Calles</button>
+                <button id="btn-sat">Vista Satélite</button>
+                <button id="btn-measure">Regla de Medición</button>
+            </div>
+        </header>
+
+        <main>
+            <div id="map" class="map-container"></div>
+        </main>
+
+        <style>
+            body {
+                margin: 0;
+                font-family: system-ui, sans-serif;
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+            }
+            .top-bar {
+                background: #1e293b;
+                color: white;
+                padding: 1rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            h1 {
+                margin: 0;
+                font-size: 1.2rem;
+            }
+            .toolbar button {
+                background: #3b82f6;
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+            }
+            .toolbar button:hover {
+                background: #2563eb;
+            }
+            .map-container {
+                width: 100%;
+                height: 100dvh;
+            }
+        </style>
+
+        <script>
+            import "ol/ol.css";
+            import Map from "ol/Map";
+            import View from "ol/View";
+            import TileLayer from "ol/layer/Tile";
+            import OSM from "ol/source/OSM";
+            import XYZ from "ol/source/XYZ";
+            import { Draw } from "ol/interaction";
+            import VectorSource from "ol/source/Vector";
+            import VectorLayer from "ol/layer/Vector";
+            import { fromLonLat } from "ol/proj";
+
+            // 1. Capas Base
+            const osmLayer = new TileLayer({
+                source: new OSM(),
+                visible: true,
+            });
+            const satLayer = new TileLayer({
+                source: new XYZ({
+                    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                }),
+                visible: false,
+            });
+
+            // 2. Capa de Dibujo/Medición
+            const drawSource = new VectorSource();
+            const drawLayer = new VectorLayer({ source: drawSource });
+
+            // 3. Inicialización del Mapa
+            const map = new Map({
+                target: "map",
+                layers: [osmLayer, satLayer, drawLayer],
+                view: new View({
+                    center: fromLonLat([-98.2062, 19.0414]), // Centro en Puebla, MX (Ajustar)
+                    zoom: 13,
+                }),
+            });
+
+            // 4. Lógica de Botones (Características Clave)
+            document.getElementById("btn-osm").addEventListener("click", () => {
+                osmLayer.setVisible(true);
+                satLayer.setVisible(false);
+            });
+
+            document.getElementById("btn-sat").addEventListener("click", () => {
+                osmLayer.setVisible(false);
+                satLayer.setVisible(true);
+            });
+
+            let drawInteraction;
+            const measureBtn = document.getElementById("btn-measure");
+
+            measureBtn.addEventListener("click", () => {
+                if (drawInteraction) {
+                    map.removeInteraction(drawInteraction);
+                    drawInteraction = null;
+                    measureBtn.style.background = "#3b82f6";
+                } else {
+                    drawInteraction = new Draw({
+                        source: drawSource,
+                        type: "LineString",
+                    });
+                    map.addInteraction(drawInteraction);
+                    measureBtn.style.background = "#ef4444";
+                }
+            });
+        </script>
+    </body>
+</html>
