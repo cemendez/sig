@@ -1,0 +1,101 @@
+---
+---
+
+<div class="kpi-dashboard">
+    <h3 class="kpi-title">📊 Resumen en Pantalla</h3>
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <span class="kpi-label">Total Obras</span>
+            <span class="kpi-value" id="kpi-obras">0</span>
+        </div>
+        <div class="kpi-card">
+            <span class="kpi-label">Inversión Visible</span>
+            <span class="kpi-value kpi-money" id="kpi-inversion">$0</span>
+        </div>
+        <div class="kpi-card alert-card">
+            <span class="kpi-label">Con Sobrecosto</span>
+            <span class="kpi-value alert-text" id="kpi-sobrecostos">0</span>
+        </div>
+    </div>
+</div>
+
+<style>
+    .kpi-dashboard {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(5px);
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        z-index: 10;
+        width: 280px;
+    }
+
+    .kpi-title {
+        margin: 0 0 10px 0;
+        font-size: 0.95rem;
+        color: #334155;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 5px;
+    }
+
+    .kpi-grid {
+        display: grid;
+        gap: 10px;
+    }
+
+    .kpi-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8f9fa;
+        padding: 8px 12px;
+        border-radius: 6px;
+    }
+    .kpi-label {
+        font-size: 0.85rem;
+        color: #64748b;
+        font-weight: 500;
+    }
+    .kpi-value {
+        font-size: 1.1rem;
+        font-weight: bold;
+        color: #0f172a;
+    }
+
+    .kpi-money {
+        color: #10b981;
+    }
+    .alert-card {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+    }
+    .alert-text {
+        color: #ef4444;
+    }
+</style>
+
+<script>
+    const formatMoney = (num: number) => {
+        if (num === 0) return "$0";
+        if (num >= 1000000) return "$" + (num / 1000000).toFixed(2) + "M";
+        if (num >= 1000) return "$" + (num / 1000).toFixed(1) + "k";
+        return "$" + num.toLocaleString();
+    };
+
+    document.addEventListener("updateStats", (e: any) => {
+        const { totalObras, totalInversion, sobrecostos } = e.detail;
+
+        document.getElementById("kpi-obras")!.innerText = totalObras.toString();
+        document.getElementById("kpi-inversion")!.innerText =
+            formatMoney(totalInversion);
+        document.getElementById("kpi-sobrecostos")!.innerText =
+            sobrecostos.toString();
+    });
+</script>

@@ -3,12 +3,25 @@ import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
 import Sidebar from "../components/Sidebar.astro";
 import MapView from "../components/Map.astro";
+import Dashboard from "../components/Dashboard.astro";
 ---
 
 <Layout title="Geoportal GovTech - Demo">
     <Header />
     <div class="main-content">
         <Sidebar />
-        <MapView />
+        <div class="map-wrapper">
+            <MapView />
+            <Dashboard />
+        </div>
     </div>
 </Layout>
+
+<style>
+    .map-wrapper {
+        position: relative;
+        flex-grow: 1;
+        height: 100%;
+        width: 100%;
+    }
+</style>

@@ -305,7 +305,7 @@
             map.addInteraction(drawInteraction);
             measureBtn.style.background = "#f59e0b";
             measureContainer?.classList.add("measure-active");
-            
+
             let listener;
             drawInteraction.on("drawstart", (evt) => {
                 drawSource.clear();
@@ -323,5 +323,69 @@
                 ),
             );
         }
+    });
+
+    // --- 5. LÓGICA DEL DASHBOARD REACTIVO ---
+
+    // Función para convertir strings como "$1.2M" o "$800k" a números (1200000, 800000)
+    const parseInversion = (str) => {
+        if (!str) return 0;
+        let val = parseFloat(str.replace(/[^0-9.]/g, "")); // Extraer solo números
+        if (str.toLowerCase().includes("m")) val *= 1000000;
+        else if (str.toLowerCase().includes("k")) val *= 1000;
+        return val;
+    };
+
+    const calculateDashboardStats = () => {
+        // Obtener la "caja" de coordenadas que se ve en pantalla actualmente
+        const extent = map.getView().calculateExtent(map.getSize());
+
+        // Obtener todas las obras en esa caja
+        const features = obrasLayer.getSource().getFeaturesInExtent(extent);
+
+        let totalObras = 0;
+        let totalInversion = 0;
+        let sobrecostos = 0;
+
+        features.forEach((f) => {
+            const estado = f.get("estado");
+
+            // Regla de negocio: Si el filtro de este estado está apagado, no lo contamos
+            if (
+                estado === "dentro_presupuesto" &&
+                !filterState.obras.dentro_presupuesto
+            )
+                return;
+            if (estado === "sobrecosto" && !filterState.obras.sobrecosto)
+                return;
+
+            // Sumar estadísticas
+            totalObras++;
+            if (estado === "sobrecosto") sobrecostos++;
+            totalInversion += parseInversion(f.get("inversion"));
+        });
+
+        // Enviar datos al componente Dashboard.astro
+        document.dispatchEvent(
+            new CustomEvent("updateStats", {
+                detail: { totalObras, totalInversion, sobrecostos },
+            }),
+        );
+    };
+
+    // Escuchar cuando el usuario termina de arrastrar o hacer zoom en el mapa
+    map.on("moveend", calculateDashboardStats);
+
+    // Escuchar cuando la capa de datos original termina de cargar (para el cálculo inicial)
+    obrasLayer.getSource().once("change", (e) => {
+        if (obrasLayer.getSource().getState() === "ready") {
+            calculateDashboardStats();
+        }
+    });
+
+    // Modificación extra: Asegurarnos de que cuando filtremos en la barra lateral, los números también cambien
+    document.addEventListener("filterLayer", () => {
+        // Hacemos un pequeño timeout para que OpenLayers actualice primero los estilos, y luego calculamos
+        setTimeout(calculateDashboardStats, 50);
     });
 </script>
