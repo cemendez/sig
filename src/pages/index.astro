@@ -10,12 +10,20 @@
             <div class="toolbar">
                 <button id="btn-osm">Vista Calles</button>
                 <button id="btn-sat">Vista Satélite</button>
-                <button id="btn-measure">Regla de Medición</button>
+                <div class="measure-container">
+                    <button id="btn-measure">Medir Distancia</button>
+                    <span id="measure-output">0.00 m</span>
+                </div>
             </div>
         </header>
 
         <main>
             <div id="map" class="map-container"></div>
+
+            <div id="popup" class="ol-popup">
+                <a href="#" id="popup-closer" class="ol-popup-closer">✖</a>
+                <div id="popup-content"></div>
+            </div>
         </main>
 
         <style>
@@ -38,6 +46,11 @@
                 margin: 0;
                 font-size: 1.2rem;
             }
+            .toolbar {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+            }
             .toolbar button {
                 background: #3b82f6;
                 color: white;
@@ -50,9 +63,93 @@
             .toolbar button:hover {
                 background: #2563eb;
             }
+            .measure-container {
+                display: flex;
+                align-items: center;
+                background: #0f172a;
+                padding-right: 1rem;
+                border-radius: 4px;
+            }
+            #measure-output {
+                margin-left: 10px;
+                font-weight: bold;
+                color: #10b981;
+                font-family: monospace;
+                font-size: 1.1rem;
+            }
+
             .map-container {
                 width: 100%;
-                height: 100dvh;
+                height: calc(100dvh - 63px);
+            }
+
+            .ol-popup {
+                position: absolute;
+                background-color: white;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                padding: 15px;
+                border-radius: 8px;
+                border: 1px solid #cccccc;
+                bottom: 12px;
+                left: -50px;
+                min-width: 200px;
+                font-size: 0.9rem;
+            }
+            .ol-popup:after,
+            .ol-popup:before {
+                top: 100%;
+                border: solid transparent;
+                content: " ";
+                height: 0;
+                width: 0;
+                position: absolute;
+                pointer-events: none;
+            }
+            .ol-popup:after {
+                border-top-color: white;
+                border-width: 10px;
+                left: 48px;
+                margin-left: -10px;
+            }
+            .ol-popup:before {
+                border-top-color: #cccccc;
+                border-width: 11px;
+                left: 48px;
+                margin-left: -11px;
+            }
+            .ol-popup-closer {
+                text-decoration: none;
+                position: absolute;
+                top: 5px;
+                right: 8px;
+                color: #64748b;
+            }
+            .ol-popup-closer:hover {
+                color: #ef4444;
+            }
+
+            .info-title {
+                margin: 0 0 5px 0;
+                color: #0f172a;
+                font-size: 1.1rem;
+            }
+            .info-badge {
+                display: inline-block;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 0.8rem;
+                font-weight: bold;
+                margin-bottom: 5px;
+                color: white;
+            }
+            .badge-ok {
+                background: #10b981;
+            }
+            .badge-bad {
+                background: #ef4444;
+            }
+            .badge-info {
+                background: #3b82f6;
             }
         </style>
 
@@ -63,12 +160,15 @@
             import TileLayer from "ol/layer/Tile";
             import OSM from "ol/source/OSM";
             import XYZ from "ol/source/XYZ";
-            import { Draw } from "ol/interaction";
             import VectorSource from "ol/source/Vector";
             import VectorLayer from "ol/layer/Vector";
+            import { Draw } from "ol/interaction";
+            import Overlay from "ol/Overlay";
             import { fromLonLat } from "ol/proj";
+            import { getLength } from "ol/sphere";
+            import GeoJSON from "ol/format/GeoJSON";
+            import { Style, Circle, Fill, Stroke } from "ol/style";
 
-            // 1. Capas Base
             const osmLayer = new TileLayer({
                 source: new OSM(),
                 visible: true,
@@ -80,26 +180,145 @@
                 visible: false,
             });
 
-            // 2. Capa de Dibujo/Medición
-            const drawSource = new VectorSource();
-            const drawLayer = new VectorLayer({ source: drawSource });
+            const bufferStyle = new Style({
+                fill: new Fill({ color: "rgba(59, 130, 246, 0.3)" }),
+                stroke: new Stroke({ color: "#3b82f6", width: 2 }),
+            });
+            const bufferLayer = new VectorLayer({
+                source: new VectorSource({
+                    url: "/data/hospitales_buffer.json",
+                    format: new GeoJSON(),
+                }),
+                style: bufferStyle,
+            });
 
-            // 3. Inicialización del Mapa
+            const obrasStyle = function (feature) {
+                const estado = feature.get("estado");
+                const color = estado === "sobrecosto" ? "#ef4444" : "#10b981";
+                return new Style({
+                    image: new Circle({
+                        radius: 8,
+                        fill: new Fill({ color: color }),
+                        stroke: new Stroke({ color: "#ffffff", width: 2 }),
+                    }),
+                });
+            };
+            const obrasLayer = new VectorLayer({
+                source: new VectorSource({
+                    url: "/data/obras.json",
+                    format: new GeoJSON(),
+                }),
+                style: obrasStyle,
+            });
+
+            const drawSource = new VectorSource();
+            const drawLayer = new VectorLayer({
+                source: drawSource,
+                style: new Style({
+                    stroke: new Stroke({
+                        color: "#f59e0b",
+                        width: 3,
+                        lineDash: [10, 10],
+                    }),
+                }),
+            });
+
+            // Configuración del Popup (Overlay)
+            const container = document.getElementById("popup");
+            const content = document.getElementById("popup-content");
+            const closer = document.getElementById("popup-closer");
+
+            const overlay = new Overlay({
+                element: container,
+                autoPan: { animation: { duration: 250 } },
+            });
+
+            closer.onclick = function () {
+                overlay.setPosition(undefined);
+                closer.blur();
+                return false;
+            };
+
+            // Inicializar Mapa
             const map = new Map({
                 target: "map",
-                layers: [osmLayer, satLayer, drawLayer],
+                layers: [
+                    osmLayer,
+                    satLayer,
+                    bufferLayer,
+                    obrasLayer,
+                    drawLayer,
+                ],
+                overlays: [overlay],
                 view: new View({
-                    center: fromLonLat([-98.2062, 19.0414]), // Centro en Puebla, MX (Ajustar)
+                    center: fromLonLat([-98.2062, 19.0414]),
                     zoom: 13,
                 }),
             });
 
-            // 4. Lógica de Botones (Características Clave)
+            // Lógica del Clic para mostrar el Popup
+            map.on("singleclick", function (evt) {
+                // Ignorar clics si estamos dibujando/midiendo
+                if (
+                    document.getElementById("btn-measure").style.background ===
+                    "rgb(245, 158, 11)"
+                )
+                    return;
+
+                const feature = map.forEachFeatureAtPixel(
+                    evt.pixel,
+                    function (feat) {
+                        return feat;
+                    },
+                );
+
+                if (feature) {
+                    const props = feature.getProperties();
+                    const coord = evt.coordinate;
+
+                    let html = `<h3 class="info-title">${props.nombre || "Área de Influencia"}</h3>`;
+
+                    if (props.estado) {
+                        const badgeClass =
+                            props.estado === "sobrecosto"
+                                ? "badge-bad"
+                                : "badge-ok";
+                        const estadoTexto =
+                            props.estado === "sobrecosto"
+                                ? "Alerta: Sobrecosto"
+                                : "En Regla";
+                        html += `<span class="info-badge ${badgeClass}">${estadoTexto}</span><br>`;
+                    } else {
+                        html += `<span class="info-badge badge-info">Zonificación</span><br>`;
+                    }
+
+                    if (props.inversion) {
+                        html += `<strong>Inversión:</strong> ${props.inversion}<br>`;
+                    }
+
+                    if (feature.getGeometry().getType() === "Point") {
+                        html += `<small style="color:#64748b;">ID Obra: #${Math.floor(Math.random() * 10000)}</small>`;
+                    }
+
+                    content.innerHTML = html;
+                    overlay.setPosition(coord);
+                } else {
+                    overlay.setPosition(undefined);
+                }
+            });
+
+            // Cambiar el cursor a "pointer" si pasamos sobre algo clickeable
+            map.on("pointermove", function (e) {
+                if (e.dragging) return;
+                const pixel = map.getEventPixel(e.originalEvent);
+                const hit = map.hasFeatureAtPixel(pixel);
+                map.getTargetElement().style.cursor = hit ? "pointer" : "";
+            });
+
             document.getElementById("btn-osm").addEventListener("click", () => {
                 osmLayer.setVisible(true);
                 satLayer.setVisible(false);
             });
-
             document.getElementById("btn-sat").addEventListener("click", () => {
                 osmLayer.setVisible(false);
                 satLayer.setVisible(true);
@@ -107,19 +326,45 @@
 
             let drawInteraction;
             const measureBtn = document.getElementById("btn-measure");
+            const measureOutput = document.getElementById("measure-output");
+            const formatLength = function (line) {
+                const length = getLength(line);
+                return length > 1000
+                    ? Math.round((length / 1000) * 100) / 100 + " km"
+                    : Math.round(length * 100) / 100 + " m";
+            };
 
             measureBtn.addEventListener("click", () => {
                 if (drawInteraction) {
                     map.removeInteraction(drawInteraction);
                     drawInteraction = null;
                     measureBtn.style.background = "#3b82f6";
+                    measureOutput.innerText = "0.00 m";
+                    drawSource.clear();
                 } else {
+                    overlay.setPosition(undefined); // Ocultar popup al medir
                     drawInteraction = new Draw({
                         source: drawSource,
                         type: "LineString",
                     });
                     map.addInteraction(drawInteraction);
-                    measureBtn.style.background = "#ef4444";
+                    measureBtn.style.background = "#f59e0b";
+                    let listener;
+                    drawInteraction.on("drawstart", (evt) => {
+                        drawSource.clear();
+                        listener = evt.feature
+                            .getGeometry()
+                            .on("change", (evt) => {
+                                measureOutput.innerText = formatLength(
+                                    evt.target,
+                                );
+                            });
+                    });
+                    drawInteraction.on("drawend", () => {
+                        import("ol/Observable").then(({ unByKey }) => {
+                            unByKey(listener);
+                        });
+                    });
                 }
             });
         </script>

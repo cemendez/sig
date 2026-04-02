@@ -1,0 +1,23 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": { "nombre": "Área de Cobertura - Hospital General" },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [-98.225, 19.055],
+                        [-98.215, 19.06],
+                        [-98.205, 19.055],
+                        [-98.205, 19.045],
+                        [-98.215, 19.04],
+                        [-98.225, 19.045],
+                        [-98.225, 19.055]
+                    ]
+                ]
+            }
+        }
+    ]
+}

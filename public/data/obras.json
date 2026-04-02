@@ -1,0 +1,32 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {
+                "nombre": "Pavimentación Av. Juárez",
+                "estado": "dentro_presupuesto",
+                "inversion": "$1.2M"
+            },
+            "geometry": { "type": "Point", "coordinates": [-98.214, 19.045] }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "nombre": "Clínica del Sur",
+                "estado": "sobrecosto",
+                "inversion": "$4.5M"
+            },
+            "geometry": { "type": "Point", "coordinates": [-98.2, 19.03] }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "nombre": "Renovación Parque",
+                "estado": "dentro_presupuesto",
+                "inversion": "$800k"
+            },
+            "geometry": { "type": "Point", "coordinates": [-98.195, 19.048] }
+        }
+    ]
+}
