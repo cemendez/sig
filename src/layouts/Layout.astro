@@ -1,0 +1,48 @@
+---
+const { title } = Astro.props;
+---
+
+<html lang="es">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{title}</title>
+    </head>
+    <body>
+        <div class="app-layout">
+            <slot />
+        </div>
+
+        <style is:global>
+            :root {
+                --header-height: 64px;
+            }
+            body,
+            html {
+                margin: 0;
+                padding: 0;
+                font-family: system-ui, -apple-system, sans-serif;
+                background: #f8f9fa;
+                overflow: hidden;
+            }
+            .app-layout {
+                display: flex;
+                flex-direction: column;
+                height: 100dvh;
+                width: 100vw;
+            }
+            .main-content {
+                display: flex;
+                flex-grow: 1;
+                overflow: hidden;
+                position: relative;
+            }
+
+            @media (max-width: 768px) {
+                :root {
+                    --header-height: 56px;
+                }
+            }
+        </style>
+    </body>
+</html>

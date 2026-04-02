@@ -1,0 +1,327 @@
+---
+
+---
+
+<div id="map" class="map-container"></div>
+
+<div id="popup" class="ol-popup">
+    <a href="#" id="popup-closer" class="ol-popup-closer">✖</a>
+    <div id="popup-content"></div>
+</div>
+
+<style>
+    .map-container {
+        flex-grow: 1;
+        height: 100%;
+        position: relative;
+    }
+
+    .ol-popup {
+        position: absolute;
+        background-color: white;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #cccccc;
+        bottom: 12px;
+        left: -50px;
+        min-width: 220px;
+        font-size: 0.9rem;
+        z-index: 20;
+    }
+    .ol-popup:after,
+    .ol-popup:before {
+        top: 100%;
+        border: solid transparent;
+        content: " ";
+        height: 0;
+        width: 0;
+        position: absolute;
+        pointer-events: none;
+    }
+    .ol-popup:after {
+        border-top-color: white;
+        border-width: 10px;
+        left: 48px;
+        margin-left: -10px;
+    }
+    .ol-popup:before {
+        border-top-color: #cccccc;
+        border-width: 11px;
+        left: 48px;
+        margin-left: -11px;
+    }
+    .ol-popup-closer {
+        text-decoration: none;
+        position: absolute;
+        top: 5px;
+        right: 8px;
+        color: #64748b;
+        font-weight: bold;
+    }
+    .ol-popup-closer:hover {
+        color: #ef4444;
+    }
+
+    :global(.info-title) {
+        margin: 0 0 5px 0;
+        color: #0f172a;
+        font-size: 1.1rem;
+    }
+    :global(.info-badge) {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: white;
+        text-transform: uppercase;
+    }
+    :global(.badge-ok) {
+        background: #10b981;
+    }
+    :global(.badge-bad) {
+        background: #ef4444;
+    }
+    :global(.badge-info) {
+        background: #3b82f6;
+    }
+</style>
+
+<script>
+    // @ts-nocheck
+    import "ol/ol.css";
+    import Map from "ol/Map";
+    import View from "ol/View";
+    import TileLayer from "ol/layer/Tile";
+    import OSM from "ol/source/OSM";
+    import XYZ from "ol/source/XYZ";
+    import VectorSource from "ol/source/Vector";
+    import VectorLayer from "ol/layer/Vector";
+    import { Draw } from "ol/interaction";
+    import Overlay from "ol/Overlay";
+    import { fromLonLat } from "ol/proj";
+    import { getLength } from "ol/sphere";
+    import GeoJSON from "ol/format/GeoJSON";
+    import { Style, Circle, Fill, Stroke } from "ol/style";
+
+    // --- ESTADO DE LOS FILTROS ---
+    const filterState = {
+        hospitales: true,
+        obras: {
+            dentro_presupuesto: true,
+            sobrecosto: true,
+        },
+    };
+
+    // --- 1. CAPAS ---
+    const osmLayer = new TileLayer({ source: new OSM(), visible: true });
+    const satLayer = new TileLayer({
+        source: new XYZ({
+            url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        }),
+        visible: false,
+    });
+
+    // Capa Buffer (Polígonos)
+    const bufferLayer = new VectorLayer({
+        source: new VectorSource({
+            url: "/data/hospitales_buffer.json",
+            format: new GeoJSON(),
+        }),
+        style: new Style({
+            fill: new Fill({ color: "rgba(59, 130, 246, 0.3)" }),
+            stroke: new Stroke({ color: "#3b82f6", width: 2 }),
+        }),
+    });
+
+    // Capa Obras con Estilo Dinámico (Filtros)
+    const obrasStyle = function (feature) {
+        const estado = feature.get("estado");
+
+        // Si el filtro para este estado está apagado, retorna null (se oculta)
+        if (
+            estado === "dentro_presupuesto" &&
+            !filterState.obras.dentro_presupuesto
+        )
+            return null;
+        if (estado === "sobrecosto" && !filterState.obras.sobrecosto)
+            return null;
+
+        const color = estado === "sobrecosto" ? "#ef4444" : "#10b981";
+        return new Style({
+            image: new Circle({
+                radius: 8,
+                fill: new Fill({ color: color }),
+                stroke: new Stroke({ color: "#ffffff", width: 2 }),
+            }),
+        });
+    };
+    const obrasLayer = new VectorLayer({
+        source: new VectorSource({
+            url: "/data/obras.json",
+            format: new GeoJSON(),
+        }),
+        style: obrasStyle,
+    });
+
+    // Capa Dibujo
+    const drawSource = new VectorSource();
+    const drawLayer = new VectorLayer({
+        source: drawSource,
+        style: new Style({
+            stroke: new Stroke({
+                color: "#f59e0b",
+                width: 3,
+                lineDash: [10, 10],
+            }),
+        }),
+    });
+
+    // --- 2. INICIALIZAR MAPA Y POPUP ---
+    const container = document.getElementById("popup");
+    const content = document.getElementById("popup-content");
+    const closer = document.getElementById("popup-closer");
+    const overlay = new Overlay({
+        element: container,
+        autoPan: { animation: { duration: 250 } },
+    });
+
+    closer.onclick = () => {
+        overlay.setPosition(undefined);
+        closer.blur();
+        return false;
+    };
+
+    const map = new Map({
+        target: "map",
+        layers: [osmLayer, satLayer, bufferLayer, obrasLayer, drawLayer],
+        overlays: [overlay],
+        view: new View({ center: fromLonLat([-98.2062, 19.0414]), zoom: 13 }),
+    });
+
+    // --- 3. EVENTOS DEL MOUSE (POPUP) ---
+    map.on("singleclick", function (evt) {
+        if (
+            document.getElementById("btn-measure").style.background ===
+            "rgb(245, 158, 11)"
+        )
+            return; // Ignorar si mide
+
+        const feature = map.forEachFeatureAtPixel(evt.pixel, (feat) => feat);
+
+        if (feature) {
+            const props = feature.getProperties();
+            let html = `<h3 class="info-title">${props.nombre || "Área de Influencia"}</h3>`;
+
+            if (props.estado) {
+                const isBad = props.estado === "sobrecosto";
+                html += `<span class="info-badge ${isBad ? "badge-bad" : "badge-ok"}">${isBad ? "Alerta: Sobrecosto" : "En Regla"}</span><br>`;
+            } else {
+                html += `<span class="info-badge badge-info">Zonificación Salud</span><br>`;
+            }
+            if (props.inversion)
+                html += `<strong>Inversión:</strong> ${props.inversion}<br>`;
+
+            content.innerHTML = html;
+            overlay.setPosition(evt.coordinate);
+        } else {
+            overlay.setPosition(undefined);
+        }
+    });
+
+    map.on("pointermove", function (e) {
+        if (e.dragging) return;
+        map.getTargetElement().style.cursor = map.hasFeatureAtPixel(
+            map.getEventPixel(e.originalEvent),
+        )
+            ? "pointer"
+            : "";
+    });
+
+    // --- 4. ESCUCHAR EVENTOS EXTERNOS (FILTROS Y HEADER) ---
+    document.addEventListener("filterLayer", (e) => {
+        const { layer, status, visible } = e.detail;
+
+        if (layer === "hospitales") {
+            bufferLayer.setVisible(visible);
+        } else if (layer === "obras") {
+            filterState.obras[status] = visible;
+            obrasLayer.changed(); // Fuerza a OpenLayers a repintar la capa pasando por obrasStyle()
+        }
+        overlay.setPosition(undefined); // Cierra popup al filtrar
+    });
+
+    // Header: Cambio de Mapa Base
+    const btnOsm = document.getElementById("btn-osm");
+    const btnSat = document.getElementById("btn-sat");
+
+    const updateBaseMapUI = () => {
+        if (!btnOsm || !btnSat) return;
+        if (osmLayer.getVisible()) {
+            btnOsm.classList.add("active-view");
+            btnSat.classList.remove("active-view");
+        } else {
+            btnSat.classList.add("active-view");
+            btnOsm.classList.remove("active-view");
+        }
+    };
+
+    // Inicializar estado visual
+    updateBaseMapUI();
+
+    btnOsm?.addEventListener("click", () => {
+        osmLayer.setVisible(true);
+        satLayer.setVisible(false);
+        updateBaseMapUI();
+    });
+    btnSat?.addEventListener("click", () => {
+        osmLayer.setVisible(false);
+        satLayer.setVisible(true);
+        updateBaseMapUI();
+    });
+
+    // Header: Medición
+    let drawInteraction;
+    const measureBtn = document.getElementById("btn-measure");
+    const measureOutput = document.getElementById("measure-output");
+    const measureContainer = measureBtn?.parentElement;
+
+    measureBtn?.addEventListener("click", () => {
+        if (drawInteraction) {
+            map.removeInteraction(drawInteraction);
+            drawInteraction = null;
+            measureBtn.style.background = "#3b82f6";
+            measureOutput.innerText = "0.00 m";
+            measureContainer?.classList.remove("measure-active");
+            drawSource.clear();
+        } else {
+            overlay.setPosition(undefined);
+            drawInteraction = new Draw({
+                source: drawSource,
+                type: "LineString",
+            });
+            map.addInteraction(drawInteraction);
+            measureBtn.style.background = "#f59e0b";
+            measureContainer?.classList.add("measure-active");
+            
+            let listener;
+            drawInteraction.on("drawstart", (evt) => {
+                drawSource.clear();
+                listener = evt.feature.getGeometry().on("change", (e) => {
+                    const len = getLength(e.target);
+                    measureOutput.innerText =
+                        len > 1000
+                            ? Math.round((len / 1000) * 100) / 100 + " km"
+                            : Math.round(len * 100) / 100 + " m";
+                });
+            });
+            drawInteraction.on("drawend", () =>
+                import("ol/Observable").then(({ unByKey }) =>
+                    unByKey(listener),
+                ),
+            );
+        }
+    });
+</script>
